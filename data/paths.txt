@@ -1,0 +1,15 @@
+1: A-C-H-B
+2: B-G-A
+3: C-G-D
+4: D-F-E-G-C
+5: E-F-C
+6: H-G-F
+7: A-H-G-E
+8: B-H-C
+9: C-E-H
+10: F-G-E-A-B-C-D-E
+11: A-B-C
+12: A-F
+13: B-F-D
+14: G-C-E
+15: B-D-G
