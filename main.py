@@ -118,3 +118,9 @@ if __name__ == '__main__':
 
     print("Assigned Trains To Depot X:" + str(X_paths))
     print("Assigned Trains To Depot Y:" + str(Y_paths))
+
+    # export the decision variables of the model to numpy array
+    X = np.array([v.x for v in model.getVars()]).reshape(15, 2)
+
+    # export the numpy array
+    np.savetxt("data/assigned_depots.txt", X, fmt="%d")
