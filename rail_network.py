@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # read the distances.txt file and store the distances in a numpy array
-    distances = np.loadtxt("data/distances.txt")
+    distances = np.loadtxt("data/distances.txt", dtype=int)
 
     print(distances.shape)
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
             # read the part after ':' as a list which are separated by '-'
             depot_node_distances.append(list(map(int, line[idx + 2:].split('-'))))
 
-    depot_node_distances = np.array(depot_node_distances)
+    depot_node_distances = np.array(depot_node_distances, dtype=int)
 
     # read the assigned_depots to numpy array as integers
     X = np.loadtxt("data/assigned_depots.txt", dtype=int)
@@ -55,6 +55,7 @@ if __name__ == "__main__":
     # should include the distance between end node and start node to start another cycle.
     # The train can travel at most 20 hours a day.
     max_hours = []
+    max_loops = []
     for i in range(15):
         # 0 for X, 1 for Y from assigned_depots
         assigned_depot = 0
@@ -80,6 +81,47 @@ if __name__ == "__main__":
                     depot_node_distances[assigned_depot][paths[i][-1]])
 
         max_hours.append(max_hour)
+        max_loops.append(k)
+
+    W = []
+    hour_lists = []
+    for i in range(15):
+        hour = 0
+        assigned_depot = 0
+        if X[i, 1] == 1:
+            assigned_depot = 1
+        ls = []
+
+        for r in range(0, 21):
+            ls.append([0] * 10)
+
+        # add a list of 10 elements where every element is 0 except 9th element
+        # if the path starts from depot 0 and 10th element if the path starts from depot 1
+        if X[i, 0] == 1:
+            ls[hour][8] = 1
+        else:
+            ls[hour][9] = 1
+
+        hour += depot_node_distances[assigned_depot][paths[i][0]]
+
+        for loop in range(max_loops[i]):
+            for j in range(len(paths[i]) - 1):
+                ls[hour][paths[i][j]] = 1
+
+                hour += distances[paths[i][j]][paths[i][j + 1]]
+
+            ls[hour][paths[i][-1]] = 1
+
+            if (loop + 1) != max_loops[i]:
+                hour += distances[paths[i][-1]][paths[i][0]]
+
+        hour += depot_node_distances[assigned_depot][paths[i][-1]]
+        if assigned_depot == 0:
+            ls[hour][8] = 1
+        else:
+            ls[hour][9] = 1
+
+        W.append(ls)
 
     # define cost constants and make them final
     c_e = 750000
