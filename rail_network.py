@@ -123,6 +123,20 @@ if __name__ == "__main__":
 
         W.append(ls)
 
+    # define parameter P such that $p_{ir}$: Binary parameter indicating if train $i$ is on some node
+    # at time $r$ for $1 \leq i \leq 15$ and $1 \leq r \leq 20$ using W
+    # add binary parameter p_ir for each path i and time r
+    P = []
+    for i in range(15):
+        P.append([0] * 21)
+
+    for i in range(15):
+        for r in range(21):
+            for j in range(10):
+                if W[i][r][j] == 1:
+                    P[i][r] = 1
+                    break
+
     # define cost constants and make them final
     c_e = 750000
     c_d = 250000
@@ -230,7 +244,37 @@ if __name__ == "__main__":
                 expr += W[i][r_index][j]
             model.addConstr(expr >= y[i, r_index], f"f{i}-{r_index}")
 
-    # add constraint $z_{ir} \leq 8$ for and $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # add constraint $z_{i(r+1)} \geq p_{i(r+1)}(z_{ir} + 1 - 20y_{i(r+1)})$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(20):
+            expr = gp.LinExpr()
+            expr += z[i, r_index + 1] - P[i][r_index + 1] * (z[i, r_index] + 1 - 20 * y[i, r_index + 1])
+            model.addConstr(expr >= 0, f"g{i}-{r_index}")
+
+    # add constraint $z_{i(r+1)} \leq z_{ir} + 1$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(20):
+            expr = gp.LinExpr()
+            expr += z[i, r_index + 1] - z[i, r_index]
+            model.addConstr(expr <= 1, f"h{i}-{r_index}")
+
+    # add constraint $z_{ir} \leq 20(1-y_{ir})$ for $0 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            expr += z[i, r_index] + 20 * y[i, r_index]
+            model.addConstr(expr <= 20, f"i{i}-{r_index}")
+
+    # add constraint $z_{ir} \leq 8e_{i} + 20(1-e_{i})$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
     # for each path i and time r, create a linear expression
     # add the linear expression to the model
     # add the constraint to the model
@@ -238,7 +282,7 @@ if __name__ == "__main__":
         for r_index in range(21):
             expr = gp.LinExpr()
             expr += z[i, r_index]
-            model.addConstr(expr <= 8, f"g{i}-{r_index}")
+            model.addConstr(expr <= -12 * e[i] + 20, f"j{i}-{r_index}")
 
     # add constraint $z_{ir} \geq 0$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
     # for each path i and time r, create a linear expression
@@ -248,7 +292,20 @@ if __name__ == "__main__":
         for r_index in range(21):
             expr = gp.LinExpr()
             expr += z[i, r_index]
-            model.addConstr(expr >= 0, f"h{i}-{r_index}")
+            model.addConstr(expr >= 0, f"l{i}-{r_index}")
+
+    # add constraint $z_{ir} (w_{irX} + w_{irY})=0$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            expr += W[i][r_index][8] * z[i, r_index] # X
+            expr += W[i][r_index][9] * z[i, r_index] # Y
+            model.addConstr(expr == 0, f"m{i}-{r_index}")
 
     # add the objective function $\min \sum_{i=1}^{15} (c_{eh} e_{i} + c_{dh} d_{i}) h_{i} + \sum_{i=1}^{15} (c_{e} e_{i} + c_{d} d_{i}) + \sum_{k=1}^{2} (c_{dc} t_{k} + c_{df} s_{k}) + \sum_{j=1}^{8} r_{j} c_{rc}$
     # create a linear expression
@@ -266,3 +323,45 @@ if __name__ == "__main__":
 
     # write the model to a file
     model.write("rail_network.lp")
+
+    # optimize the model
+    model.optimize()
+
+    '''
+    # model is infeasible, trace the infeasible constraints
+    if model.status == GRB.INFEASIBLE:
+        print("Model is infeasible")
+        model.computeIIS()
+        model.write("model.ilp")
+        exit(0)'''
+
+    # print the optimal solution
+    print("Optimal solution:")
+    for v in model.getVars():
+        print(v.varName, v.x)
+    print('Obj:', model.objVal)
+
+    # print the number of fuel stations built on each depot
+    print("Number of fuel stations built on each depot:")
+    for k in range(2):
+        print(f"Depot {k}: {s[k].x}")
+
+    # print the number of charging stations built on each depot
+    print("Number of charging stations built on each depot:")
+    for k in range(2):
+        print(f"Depot {k}: {t[k].x}")
+
+    # print the number of charging stations built on each node
+    print("Number of charging stations built on each node:")
+    for j in range(8):
+        print(f"Node {j}: {r[j].x}")
+
+    # print the number of hours passed since train belonging to path i is last charged
+    print("Number of hours passed since train belonging to path i is last charged:")
+    for i in range(15):
+        print(f"Path {i}: {z[i, 0].x}")
+
+    # print the number of hours train can travel on each path
+    print("Number of hours train can travel on each path:")
+    for i in range(15):
+        print(f"Path {i}: {max_hours[i]}")
