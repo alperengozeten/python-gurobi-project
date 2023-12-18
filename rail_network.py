@@ -137,6 +137,17 @@ if __name__ == "__main__":
                     P[i][r] = 1
                     break
 
+    # define parameter Q such that $q_{ir}$: Binary parameter indicating if train $i$ is on some depot
+    # at time $r$ for $1 \leq i \leq 15$ and $1 \leq r \leq 20$ using W
+    # add binary parameter q_ir for each path i and time r
+    Q = []
+    for i in range(15):
+        Q.append([0] * 21)
+
+    for i in range(15):
+        for r in range(21):
+            Q[i][r] = W[i][r][8] + W[i][r][9]
+
     # define cost constants and make them final
     c_e = 750000
     c_d = 250000
@@ -240,8 +251,8 @@ if __name__ == "__main__":
     for i in range(15):
         for r_index in range(21):
             expr = gp.LinExpr()
-            for j in range(10):
-                expr += W[i][r_index][j]
+            expr += P[i][r_index]
+            expr += Q[i][r_index]
             model.addConstr(expr >= y[i, r_index], f"f{i}-{r_index}")
 
     # add constraint $z_{i(r+1)} \geq p_{i(r+1)}(z_{ir} + 1 - 20y_{i(r+1)})$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
