@@ -4,7 +4,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # read the distances.txt file and store the distances in a numpy array
-    distances = np.loadtxt("data/distances.txt", dtype=int)
+    distances = np.loadtxt("data/distances.txt").astype(np.int64)
 
     print(distances.shape)
 
@@ -135,6 +135,17 @@ if __name__ == "__main__":
     # create the model
     model = gp.Model("rail_network")
 
+    # define $y_{ir}$: Binary variable indicating if train belonging to path $i$
+    # is charged at time $r$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # add binary variable y_ir for each path i and time r
+    y = model.addVars(15, 21, vtype=GRB.BINARY, name="y")
+
+    # define $z_{ir}$: Variable indicating the number of hours passed since train
+    # belonging to path $i$ is last charged, at time $r$ for $1 \leq i \leq 15$
+    # and $0 \leq r \leq 20$.
+    # add integer variable z_ir for each path i and time r
+    z = model.addVars(15, 21, vtype=GRB.INTEGER, name="z")
+
     # define $s_{k}$, variable indicating the number of fuel stations built on
     # depot $k$ for $1 \leq k \leq 2$.
     # add integer variable s_k for each depot k
@@ -165,7 +176,7 @@ if __name__ == "__main__":
     for i in range(15):
         expr = gp.LinExpr()
         expr += e[i] + d[i]
-        model.addConstr(expr == 1, f"c{i}")
+        model.addConstr(expr == 1, f"a{i}")
 
     # add constraint $2 s_{k} \geq \sum_{i=1}^{15}d_{i}X_{ik}$ for $1 \leq k \leq 2$.
     # for each depot k, create a linear expression
@@ -175,8 +186,83 @@ if __name__ == "__main__":
         expr = gp.LinExpr()
         for i in range(15):
             expr += d[i] * X[i, k]
-        model.addConstr(expr <= 2 * s[k], f"c{k}")
+        model.addConstr(expr <= 2 * s[k], f"b{k}")
 
+    # add constraint $3 t_{k} \geq \sum_{i=1}^{15}e_{i}X_{ik}$ for $1 \leq k \leq 2$.
+    # for each depot k, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for k in range(2):
+        expr = gp.LinExpr()
+        for i in range(15):
+            expr += e[i] * X[i, k]
+        model.addConstr(expr <= 3 * t[k], f"c{k}")
+
+    # add constraint $r_{j} \geq \sum_{i=1}^{15} y_{ir} w_{irj}$ for $1 \leq j \leq 8$ and $1 \leq r \leq 20$.
+    # for each node j, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for j in range(8):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            for i in range(15):
+                expr += y[i, r_index] * W[i][r_index][j]
+            model.addConstr(expr <= r[j], f"d{j}{r_index}")
+
+    # add constraint $y_{ir} \leq e_{i}$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            expr += y[i, r_index]
+            model.addConstr(expr <= e[i], f"e{i}-{r_index}")
+
+    # add constraint $y_{ir} \leq \sum_{j=1}^{10} w_{irj}$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            for j in range(10):
+                expr += W[i][r_index][j]
+            model.addConstr(expr >= y[i, r_index], f"f{i}-{r_index}")
+
+    # add constraint $z_{ir} \leq 8$ for and $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            expr += z[i, r_index]
+            model.addConstr(expr <= 8, f"g{i}-{r_index}")
+
+    # add constraint $z_{ir} \geq 0$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # for each path i and time r, create a linear expression
+    # add the linear expression to the model
+    # add the constraint to the model
+    for i in range(15):
+        for r_index in range(21):
+            expr = gp.LinExpr()
+            expr += z[i, r_index]
+            model.addConstr(expr >= 0, f"h{i}-{r_index}")
+
+    # add the objective function $\min \sum_{i=1}^{15} (c_{eh} e_{i} + c_{dh} d_{i}) h_{i} + \sum_{i=1}^{15} (c_{e} e_{i} + c_{d} d_{i}) + \sum_{k=1}^{2} (c_{dc} t_{k} + c_{df} s_{k}) + \sum_{j=1}^{8} r_{j} c_{rc}$
+    # create a linear expression
+    # add the linear expression to the model
+    expr = gp.LinExpr()
+    for i in range(15):
+        expr += (c_eh * e[i] + c_dh * d[i]) * max_hours[i] + (c_e * e[i] + c_d * d[i])
+    for k in range(2):
+        expr += (c_dc * t[k] + c_df * s[k])
+    for j in range(8):
+        expr += r[j] * c_rc
+
+    # set the objective function
+    model.setObjective(expr, GRB.MINIMIZE)
 
     # write the model to a file
     model.write("rail_network.lp")
