@@ -145,8 +145,10 @@ if __name__ == "__main__":
         Q.append([0] * 21)
 
     for i in range(15):
-        for r in range(21):
-            Q[i][r] = W[i][r][8] + W[i][r][9]
+        for r in range(1, 21):
+            if W[i][r][8] == 1 or W[i][r][9] == 1:
+                for m in range(r, 21):
+                    Q[i][m] = 1
 
     # define cost constants and make them final
     c_e = 750000
@@ -255,14 +257,14 @@ if __name__ == "__main__":
             expr += Q[i][r_index]
             model.addConstr(expr >= y[i, r_index], f"f{i}-{r_index}")
 
-    # add constraint $z_{i(r+1)} \geq p_{i(r+1)}(z_{ir} + 1 - 20y_{i(r+1)})$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
+    # add constraint $z_{i(r+1)} \geq z_{ir} + 1 - 20y_{i(r+1)}$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
     # for each path i and time r, create a linear expression
     # add the linear expression to the model
     # add the constraint to the model
     for i in range(15):
         for r_index in range(20):
             expr = gp.LinExpr()
-            expr += z[i, r_index + 1] - P[i][r_index + 1] * (z[i, r_index] + 1 - 20 * y[i, r_index + 1])
+            expr += z[i, r_index + 1] - z[i, r_index] - 1 + 20 * y[i, r_index + 1]
             model.addConstr(expr >= 0, f"g{i}-{r_index}")
 
     # add constraint $z_{i(r+1)} \leq z_{ir} + 1$ for $0 \leq i \leq 15$ and $0 \leq r \leq 19$.
@@ -285,15 +287,15 @@ if __name__ == "__main__":
             expr += z[i, r_index] + 20 * y[i, r_index]
             model.addConstr(expr <= 20, f"i{i}-{r_index}")
 
-    # add constraint $z_{ir} \leq 8e_{i} + 20(1-e_{i})$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
+    # add constraint $z_{ir} \leq 8e_{i} + 20(1-e_{i}) + 20q_{ir}$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
     # for each path i and time r, create a linear expression
     # add the linear expression to the model
     # add the constraint to the model
     for i in range(15):
         for r_index in range(21):
             expr = gp.LinExpr()
-            expr += z[i, r_index]
-            model.addConstr(expr <= -12 * e[i] + 20, f"j{i}-{r_index}")
+            expr += z[i, r_index] - 8 * e[i] - 20 * (1 - e[i]) - 20 * Q[i][r_index]
+            model.addConstr(expr <= 0, f"j{i}-{r_index}")
 
     # add constraint $z_{ir} \geq 0$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
     # for each path i and time r, create a linear expression
@@ -305,18 +307,14 @@ if __name__ == "__main__":
             expr += z[i, r_index]
             model.addConstr(expr >= 0, f"l{i}-{r_index}")
 
-    # add constraint $z_{ir} (w_{irX} + w_{irY})=0$ for $1 \leq i \leq 15$ and $0 \leq r \leq 20$.
-    # for each path i and time r, create a linear expression
+    # add constraint $z_{i0}=0$ for $1 \leq i \leq 15$.
+    # for each path i, create a linear expression
     # add the linear expression to the model
     # add the constraint to the model
-    # for each path i and time r, create a linear expression
-    # add the linear expression to the model
     for i in range(15):
-        for r_index in range(21):
-            expr = gp.LinExpr()
-            expr += W[i][r_index][8] * z[i, r_index] # X
-            expr += W[i][r_index][9] * z[i, r_index] # Y
-            model.addConstr(expr == 0, f"m{i}-{r_index}")
+        expr = gp.LinExpr()
+        expr += z[i, 0]
+        model.addConstr(expr == 0, f"m{i}")
 
     # add the objective function $\min \sum_{i=1}^{15} (c_{eh} e_{i} + c_{dh} d_{i}) h_{i} + \sum_{i=1}^{15} (c_{e} e_{i} + c_{d} d_{i}) + \sum_{k=1}^{2} (c_{dc} t_{k} + c_{df} s_{k}) + \sum_{j=1}^{8} r_{j} c_{rc}$
     # create a linear expression
